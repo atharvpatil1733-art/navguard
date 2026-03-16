@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NavGuard — AI Navigation Agent</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+
+  .header { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 20px; font-weight: 700; color: #fff; }
+  .logo span { color: #4ade80; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; margin-left: auto; }
+  .status-dot.running { background: #4ade80; animation: pulse 1.5s infinite; }
+  .status-dot.done { background: #4ade80; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .main { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 16px; padding: 16px; height: calc(100vh - 65px); }
+
+  .goal-bar { grid-column: 1 / -1; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 16px; display: flex; gap: 12px; }
+  .goal-bar input { flex: 1; background: #0f0f0f; border: 1px solid #333; border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 14px; outline: none; }
+  .goal-bar input:focus { border-color: #4ade80; }
+  .btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-start { background: #4ade80; color: #000; }
+  .btn-stop { background: #ef4444; color: #fff; }
+
+  .panel { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .panel-title { padding: 12px 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 8px; }
+
+  /* Screenshot panel */
+  .screenshot-panel { position: relative; }
+  .screenshot-panel img { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  .screenshot-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #444; font-size: 14px; }
+
+  /* Log panel */
+  .log-panel { }
+  .log-content { flex: 1; overflow-y: auto; padding: 12px; font-family: monospace; font-size: 12px; line-height: 1.8; }
+  .log-entry { padding: 2px 0; }
+  .log-entry.step { color: #60a5fa; font-weight: 600; }
+  .log-entry.warning { color: #fbbf24; }
+  .log-entry.success { color: #4ade80; }
+  .log-entry.error { color: #ef4444; }
+  .log-entry.reflect { color: #c084fc; }
+  .log-entry.hint { color: #34d399; }
+  .log-entry.decision { color: #f9a8d4; }
+  .log-entry.scan { color: #94a3b8; }
+  .log-entry.action { color: #fb923c; }
+  .log-entry.info { color: #e0e0e0; }
+
+  /* Stats bar */
+  .stats-bar { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 16px; }
+  .stat-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .stat-value { font-size: 24px; font-weight: 700; color: #fff; }
+  .stat-value.danger { color: #ef4444; }
+  .stat-value.success { color: #4ade80; }
+
+  /* Bottom panels */
+  .bottom { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; max-height: 220px; }
+
+  .item-list { flex: 1; overflow-y: auto; padding: 8px 12px; }
+  .item { padding: 6px 0; border-bottom: 1px solid #222; font-size: 12px; line-height: 1.5; }
+  .item:last-child { border-bottom: none; }
+  .item .badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-right: 4px; }
+  .badge-high { background: #7f1d1d; color: #fca5a5; }
+  .badge-medium { background: #78350f; color: #fcd34d; }
+  .badge-low { background: #14532d; color: #86efac; }
+  .badge-success { background: #14532d; color: #86efac; }
+  .badge-fail { background: #7f1d1d; color: #fca5a5; }
+
+  .empty { color: #444; font-size: 12px; padding: 12px; text-align: center; }
+
+  .goal-achieved-banner { display: none; grid-column: 1/-1; background: #14532d; border: 1px solid #4ade80; border-radius: 10px; padding: 16px; text-align: center; font-size: 16px; font-weight: 600; color: #4ade80; }
+  .goal-achieved-banner.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">Nav<span>Guard</span></div>
+  <div style="font-size:13px;color:#666;">AI Navigation Agent — Reflect · Learn · Protect</div>
+  <div class="status-dot" id="statusDot"></div>
+  <div style="font-size:12px;color:#666;" id="statusText">Idle</div>
+</div>
+
+<div class="main">
+
+  <!-- Goal input bar -->
+  <div class="goal-bar">
+    <input type="text" id="goalInput" placeholder="Enter your goal — e.g. find cheapest flight from Mumbai to Delhi on MakeMyTrip" />
+    <button class="btn btn-start" onclick="startAgent()">▶ Start</button>
+    <button class="btn btn-stop" onclick="stopAgent()">■ Stop</button>
+  </div>
+
+  <!-- Goal achieved banner -->
+  <div class="goal-achieved-banner" id="achievedBanner">🎉 Goal Achieved!</div>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Current Step</div>
+      <div class="stat-value" id="statStep">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Dark Patterns Found</div>
+      <div class="stat-value danger" id="statDark">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pages Visited</div>
+      <div class="stat-value" id="statPages">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Reflections</div>
+      <div class="stat-value success" id="statReflections">0</div>
+    </div>
+  </div>
+
+  <!-- Screenshot -->
+  <div class="panel screenshot-panel">
+    <div class="panel-title">📷 Live Browser View</div>
+    <div id="screenshotContainer" style="flex:1;display:flex;align-items:center;justify-content:center;background:#000;">
+      <div class="screenshot-placeholder">Browser screenshot will appear here</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="panel log-panel">
+    <div class="panel-title">📋 Agent Log</div>
+    <div class="log-content" id="logContent"></div>
+  </div>
+
+  <!-- Bottom panels -->
+  <div class="bottom">
+
+    <!-- Dark patterns -->
+    <div class="panel">
+      <div class="panel-title">🚨 Dark Patterns Detected</div>
+      <div class="item-list" id="darkPatternList">
+        <div class="empty">No dark patterns found yet</div>
+      </div>
+    </div>
+
+    <!-- Reflections -->
+    <div class="panel">
+      <div class="panel-title">🧠 Reflection Log</div>
+      <div class="item-list" id="reflectionList">
+        <div class="empty">No reflections yet</div>
+      </div>
+    </div>
+
+    <!-- Confusion -->
+    <div class="panel">
+      <div class="panel-title">💡 Onboarding Guidance</div>
+      <div class="item-list" id="confusionList">
+        <div class="empty">No guidance yet</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  const socket = io();
+  let darkPatternCount = 0;
+  let reflectionCount = 0;
+
+  // ── Connect ──────────────────────────────────────────────
+  socket.on("connect", () => {
+    addLog("Connected to NavGuard server", "success");
+  });
+
+  // ── Log messages ─────────────────────────────────────────
+  socket.on("log", (data) => {
+    addLog(data.message, data.type);
+  });
+
+  // ── Screenshot update ────────────────────────────────────
+  socket.on("screenshot", (data) => {
+    const container = document.getElementById("screenshotContainer");
+    container.innerHTML = `<img src="data:image/png;base64,${data.data}" style="width:100%;height:100%;object-fit:contain;" />`;
+  });
+
+  // ── Stats update ─────────────────────────────────────────
+  socket.on("stats", (data) => {
+    document.getElementById("statStep").textContent = data.step;
+    document.getElementById("statDark").textContent = data.dark_patterns;
+    document.getElementById("statPages").textContent = data.pages;
+    document.getElementById("statReflections").textContent = data.reflections;
+  });
+
+  // ── Dark pattern found ───────────────────────────────────
+  socket.on("dark_patterns", (data) => {
+    const list = document.getElementById("darkPatternList");
+    if (darkPatternCount === 0) list.innerHTML = "";
+    data.patterns.forEach(p => {
+      darkPatternCount++;
+      document.getElementById("statDark").textContent = darkPatternCount;
+      const badgeClass = p.severity === "high" ? "badge-high" : p.severity === "medium" ? "badge-medium" : "badge-low";
+      list.innerHTML += `<div class="item"><span class="badge ${badgeClass}">${p.severity}</span><strong>${(p.type||"").replace(/_/g," ")}</strong><br><span style="color:#888">${p.warning||""}</span></div>`;
+    });
+  });
+
+  // ── Reflection ───────────────────────────────────────────
+  socket.on("reflection", (data) => {
+    const list = document.getElementById("reflectionList");
+    if (reflectionCount === 0) list.innerHTML = "";
+    reflectionCount++;
+    document.getElementById("statReflections").textContent = reflectionCount;
+    const badgeClass = data.success ? "badge-success" : "badge-fail";
+    const label = data.success ? "✓" : "✗";
+    list.innerHTML += `<div class="item"><span class="badge ${badgeClass}">${label} Step ${data.step}</span> ${data.lesson||""}</div>`;
+    list.scrollTop = list.scrollHeight;
+  });
+
+  // ── Confusion / guidance ─────────────────────────────────
+  socket.on("confusion", (data) => {
+    const list = document.getElementById("confusionList");
+    const color = data.level === "high" ? "#ef4444" : data.level === "medium" ? "#fbbf24" : "#4ade80";
+    list.innerHTML += `<div class="item"><span style="color:${color};font-weight:600;">${data.level} confusion</span> | clarity ${data.clarity}/10<br><span style="color:#aaa">${data.guidance||""}</span></div>`;
+    list.scrollTop = list.scrollHeight;
+  });
+
+  // ── Goal achieved ────────────────────────────────────────
+  socket.on("goal_achieved", (data) => {
+    document.getElementById("achievedBanner").classList.add("show");
+    document.getElementById("achievedBanner").textContent = `🎉 Goal Achieved! Final URL: ${data.url}`;
+    setStatus(false);
+  });
+
+  // ── Session complete ─────────────────────────────────────
+  socket.on("session_complete", (data) => {
+    addLog(`Session complete — ${data.steps} steps, ${data.dark_patterns} dark patterns, ${data.reflections} reflections`, "success");
+    setStatus(false);
+  });
+
+  // ── Error ────────────────────────────────────────────────
+  socket.on("error", (data) => {
+    addLog(`Error: ${data.message}`, "error");
+    setStatus(false);
+  });
+
+  // ── Controls ─────────────────────────────────────────────
+  function startAgent() {
+    const goal = document.getElementById("goalInput").value.trim();
+    if (!goal) { alert("Please enter a goal first!"); return; }
+    document.getElementById("achievedBanner").classList.remove("show");
+    document.getElementById("darkPatternList").innerHTML = '<div class="empty">Scanning...</div>';
+    document.getElementById("reflectionList").innerHTML = '<div class="empty">Waiting for first reflection...</div>';
+    document.getElementById("confusionList").innerHTML = '<div class="empty">Analyzing...</div>';
+    document.getElementById("logContent").innerHTML = "";
+    darkPatternCount = 0;
+    reflectionCount = 0;
+    setStatus(true);
+    socket.emit("start_agent", { goal: goal });
+  }
+
+  function stopAgent() {
+    socket.emit("stop_agent");
+    setStatus(false);
+  }
+
+  function setStatus(running) {
+    const dot = document.getElementById("statusDot");
+    const text = document.getElementById("statusText");
+    dot.className = "status-dot" + (running ? " running" : " done");
+    text.textContent = running ? "Running..." : "Idle";
+  }
+
+  function addLog(message, type) {
+    const log = document.getElementById("logContent");
+    const entry = document.createElement("div");
+    entry.className = `log-entry ${type || "info"}`;
+    const time = new Date().toLocaleTimeString();
+    entry.textContent = `[${time}] ${message}`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // Allow Enter key to start agent
+  document.getElementById("goalInput").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") startAgent();
+  });
+</script>
+</body>
+</html>

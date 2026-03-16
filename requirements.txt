@@ -1,0 +1,28 @@
+# ============================================================
+# NavGuard — Required Packages
+# ============================================================
+# Install everything with:
+#   pip install -r requirements.txt
+#   playwright install chromium
+# ============================================================
+
+# Playwright — controls the browser (click, type, screenshot)
+playwright
+
+# Google Generative AI — talks to Gemini
+google-genai
+
+# python-dotenv — reads your .env file safely
+python-dotenv
+
+# Flask — runs the web dashboard (used in Phase 4)
+flask
+
+# Flask-SocketIO — sends live updates to the dashboard
+flask-socketio
+
+# Pillow — handles screenshot images
+Pillow
+
+gunicorn
+eventlet
