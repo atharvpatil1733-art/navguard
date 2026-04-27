@@ -1,7 +1,7 @@
 # NavGuard 🛡️
 ### AI Web Navigation Agent — Reflect · Learn · Protect
 
-Built for the **Gemini Live Agent Challenge 2025**
+Built for the **Gemini Live Agent Challenge 2026**
 
 ---
 
