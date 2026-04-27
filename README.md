@@ -122,9 +122,6 @@ navguard/
 └── requirements.txt
 ```
 
-## Demo
-
-[Watch the 4-minute demo on YouTube](YOUR_YOUTUBE_LINK)
 
 ## Author
 
