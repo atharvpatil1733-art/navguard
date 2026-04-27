@@ -3,9 +3,6 @@
 
 Built for the **Gemini Live Agent Challenge 2025**
 
-[![Demo Video](https://img.shields.io/badge/Demo-YouTube-red)](YOUR_YOUTUBE_LINK)
-[![Live App](https://img.shields.io/badge/Live-Google_Cloud_Run-blue)](YOUR_CLOUD_RUN_URL)
-
 ---
 
 ## What is NavGuard?
@@ -70,7 +67,6 @@ Flask Dashboard (real-time via WebSockets)
 - **Gemini 2.5 Flash** — vision + reasoning + reflection
 - **Playwright** — browser automation
 - **Flask + SocketIO** — real-time web dashboard
-- **Google Cloud Run** — deployment
 - **Python 3.11**
 
 ## Setup
@@ -96,13 +92,6 @@ python app.py
 
 Then open `http://localhost:5000`
 
-## Google Cloud Deployment
-```bash
-# Install Google Cloud CLI first
-# Then run:
-gcloud init
-bash deploy.sh
-```
 
 ## Project Structure
 ```
